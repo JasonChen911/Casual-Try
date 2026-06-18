@@ -1,0 +1,2492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本地音乐播放器</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      color: #f7f7fb;
+      background:
+        radial-gradient(circle at 14% 18%, rgba(72, 160, 255, 0.34), transparent 30%),
+        radial-gradient(circle at 82% 10%, rgba(255, 91, 141, 0.24), transparent 26%),
+        radial-gradient(circle at 55% 92%, rgba(114, 255, 209, 0.12), transparent 30%),
+        linear-gradient(135deg, #07080c 0%, #151722 48%, #090b11 100%);
+    }
+
+    body.drag-over .player-card {
+      border-color: rgba(124, 196, 255, 0.9);
+      box-shadow: 0 0 0 4px rgba(124, 196, 255, 0.18), 0 28px 80px rgba(0, 0, 0, 0.42);
+    }
+
+    body.light-mode {
+      color: #161820;
+      background:
+        radial-gradient(circle at 14% 18%, rgba(72, 160, 255, 0.22), transparent 30%),
+        radial-gradient(circle at 82% 10%, rgba(255, 91, 141, 0.16), transparent 26%),
+        linear-gradient(135deg, #eef6ff 0%, #f8fbff 48%, #e8f1ff 100%);
+    }
+
+    body.mystery-mode {
+      color: #f7f7fb;
+      background-color: #111318;
+      background-image:
+        linear-gradient(45deg, rgba(255, 91, 141, 0.34) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(124, 196, 255, 0.32) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255, 230, 128, 0.28) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(114, 255, 209, 0.26) 75%),
+        linear-gradient(135deg, #07080c 0%, #181a22 100%);
+      background-position: 0 0, 0 18px, 18px -18px, -18px 0, 0 0;
+      background-size: 36px 36px, 36px 36px, 36px 36px, 36px 36px, auto;
+      image-rendering: pixelated;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .app {
+      width: min(1120px, calc(100% - 32px));
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 40px 0;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .player-card,
+    .playlist-card,
+    .lyrics-card,
+    .analysis-card {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.06));
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+    }
+
+    body.light-mode .player-card,
+    body.light-mode .playlist-card,
+    body.light-mode .lyrics-card,
+    body.light-mode .analysis-card {
+      border-color: rgba(16, 24, 40, 0.12);
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.46));
+      box-shadow: 0 28px 80px rgba(74, 92, 120, 0.18);
+    }
+
+    body.light-mode .eyebrow,
+    body.light-mode .label,
+    body.light-mode #songHint,
+    body.light-mode .playlist-header span,
+    body.light-mode .lyrics-header span,
+    body.light-mode .time-row,
+    body.light-mode .volume-area,
+    body.light-mode .quality-title span,
+    body.light-mode .lyrics-box,
+    body.light-mode .playlist li {
+      color: rgba(22, 24, 32, 0.68);
+    }
+
+    body.light-mode .control-button,
+    body.light-mode .secondary-button,
+    body.light-mode .upload-button,
+    body.light-mode .quality-select {
+      color: #111827;
+      background: rgba(255, 255, 255, 0.86);
+      border-color: rgba(17, 24, 39, 0.22);
+      box-shadow: 0 10px 24px rgba(74, 92, 120, 0.12);
+    }
+
+    body.light-mode .control-button:hover,
+    body.light-mode .secondary-button:hover,
+    body.light-mode .upload-button:hover {
+      color: #07111f;
+      background: #ffffff;
+      border-color: rgba(17, 24, 39, 0.34);
+    }
+
+    body.light-mode .play-button,
+    body.light-mode .secondary-button.active {
+      color: #07111f;
+      background: linear-gradient(135deg, #62b6ff, #ff87ad);
+      border-color: rgba(17, 24, 39, 0.16);
+    }
+
+    body.light-mode.mystery-mode .control-button,
+    body.light-mode.mystery-mode .secondary-button,
+    body.light-mode.mystery-mode .upload-button,
+    body.light-mode.mystery-mode .quality-select {
+      color: #f7f7fb;
+      background: rgba(16, 17, 22, 0.72);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    body.light-mode.mystery-mode .eyebrow,
+    body.light-mode.mystery-mode .label,
+    body.light-mode.mystery-mode #songHint,
+    body.light-mode.mystery-mode .playlist-header span,
+    body.light-mode.mystery-mode .lyrics-header span,
+    body.light-mode.mystery-mode .time-row,
+    body.light-mode.mystery-mode .volume-area,
+    body.light-mode.mystery-mode .quality-title span,
+    body.light-mode.mystery-mode .lyrics-box,
+    body.light-mode.mystery-mode .playlist li {
+      color: rgba(247, 247, 251, 0.82);
+    }
+
+    body.mystery-mode .player-card,
+    body.mystery-mode .playlist-card,
+    body.mystery-mode .lyrics-card,
+    body.mystery-mode .analysis-card {
+      border-color: rgba(255, 230, 128, 0.42);
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 50%),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 50%);
+      background-size: 18px 18px;
+      box-shadow: 0 0 0 3px rgba(255, 230, 128, 0.12), 0 28px 80px rgba(0, 0, 0, 0.46);
+    }
+
+    .player-card,
+    .playlist-card,
+    .lyrics-card,
+    .analysis-card {
+      padding: 24px;
+    }
+
+    .player-card {
+      position: relative;
+    }
+
+    .side-column {
+      display: grid;
+      gap: 24px;
+    }
+
+    .wave-wrap {
+      margin-bottom: 22px;
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .wave-canvas {
+      width: 100%;
+      height: 72px;
+      display: block;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(124, 196, 255, 0.12), rgba(255, 154, 188, 0.08));
+    }
+
+    .top-bar,
+    .playlist-header,
+    .lyrics-header,
+    .volume-area,
+    .time-row,
+    .quality-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .eyebrow,
+    .label,
+    #songHint,
+    .playlist-header span,
+    .lyrics-header span,
+    .time-row,
+    .volume-area,
+    .quality-title span {
+      color: rgba(247, 247, 251, 0.68);
+    }
+
+    .eyebrow,
+    .label {
+      margin-bottom: 7px;
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: 30px;
+      line-height: 1.2;
+    }
+
+    h2 {
+      font-size: 22px;
+      line-height: 1.25;
+    }
+
+    .upload-button {
+      flex: 0 0 auto;
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: #101116;
+      background: #f7f7fb;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .upload-button:hover {
+      transform: translateY(-2px);
+      background: #d7ecff;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .now-playing {
+      margin: 32px 0 28px;
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 26px;
+      align-items: center;
+    }
+
+    .cover {
+      width: 180px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      position: relative;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04)),
+        linear-gradient(135deg, #48a0ff, #ff5b8d);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 18px 40px rgba(0, 0, 0, 0.32);
+      animation: recordSpin 8s linear infinite;
+      animation-play-state: paused;
+    }
+
+    .cover.is-playing {
+      animation-play-state: running;
+    }
+
+    .cover::after {
+      content: "";
+      width: 34px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      position: absolute;
+      z-index: 2;
+      background: #101116;
+      border: 8px solid rgba(247, 247, 251, 0.82);
+      box-shadow: 0 0 18px rgba(0, 0, 0, 0.45);
+    }
+
+    @keyframes recordSpin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+      position: absolute;
+      inset: 0;
+    }
+
+    .cover.has-image img {
+      display: block;
+    }
+
+    .cover.has-image .disc {
+      display: none;
+    }
+
+    .disc {
+      width: 88px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 16px solid rgba(16, 17, 22, 0.75);
+      background: #f7f7fb;
+      box-shadow: 0 0 0 9px rgba(255, 255, 255, 0.18);
+    }
+
+    .song-info {
+      min-width: 0;
+    }
+
+    #songTitle {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #songHint {
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    .progress-area {
+      margin-bottom: 24px;
+    }
+
+    .time-row {
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .slider {
+      width: 100%;
+      height: 6px;
+      accent-color: #7cc4ff;
+      cursor: pointer;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .secondary-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .theme-toggle {
+      min-height: 44px;
+      padding: 0 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .control-button,
+    .play-button,
+    .secondary-button {
+      min-height: 48px;
+      border-radius: 8px;
+      color: #f7f7fb;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .play-button {
+      color: #101116;
+      background: linear-gradient(135deg, #7cc4ff, #ff9abc);
+      font-weight: 800;
+    }
+
+    .control-button:hover,
+    .play-button:hover,
+    .secondary-button:hover {
+      transform: translateY(-2px);
+      background-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .secondary-button.active {
+      color: #101116;
+      background: #d7ecff;
+      font-weight: 800;
+    }
+
+    .volume-area,
+    .quality-area {
+      padding: 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .volume-area {
+      margin-bottom: 14px;
+    }
+
+    .volume-area span {
+      flex: 0 0 auto;
+      font-size: 14px;
+    }
+
+    .quality-title {
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .quality-title strong {
+      color: #d7ecff;
+      font-size: 14px;
+    }
+
+    .quality-select {
+      width: 100%;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      color: #f7f7fb;
+      background: rgba(16, 17, 22, 0.72);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .quality-select:focus {
+      border-color: rgba(124, 196, 255, 0.72);
+      box-shadow: 0 0 0 3px rgba(124, 196, 255, 0.16);
+    }
+
+    .playlist-header,
+    .lyrics-header {
+      margin-bottom: 18px;
+    }
+
+    .playlist {
+      list-style: none;
+      max-height: 380px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .playlist li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding: 14px;
+      border-radius: 8px;
+      color: rgba(247, 247, 251, 0.8);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .playlist li:hover,
+    .playlist li.active {
+      color: #ffffff;
+      background: rgba(124, 196, 255, 0.18);
+      border-color: rgba(124, 196, 255, 0.48);
+    }
+
+    .playlist .empty {
+      justify-content: center;
+      color: rgba(247, 247, 251, 0.55);
+      cursor: default;
+    }
+
+    .playlist .empty:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .song-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .song-number {
+      flex: 0 0 auto;
+      color: rgba(247, 247, 251, 0.46);
+      font-size: 13px;
+    }
+
+    .song-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .favorite-mark {
+      color: #ff9abc;
+      font-size: 15px;
+    }
+
+    .lyrics-box {
+      min-height: 220px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding: 16px;
+      border-radius: 8px;
+      color: rgba(247, 247, 251, 0.82);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      line-height: 1.9;
+      white-space: pre-wrap;
+    }
+
+    .lyrics-box.empty {
+      display: grid;
+      place-items: center;
+      min-height: 180px;
+      text-align: center;
+      color: rgba(247, 247, 251, 0.55);
+      line-height: 1.6;
+    }
+
+    .analysis-card {
+      display: none;
+    }
+
+    .analysis-card.show {
+      display: block;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .analysis-item {
+      padding: 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .analysis-label {
+      margin-bottom: 8px;
+      color: rgba(247, 247, 251, 0.58);
+      font-size: 13px;
+    }
+
+    .analysis-value {
+      color: #f7f7fb;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .instrument-list {
+      grid-column: 1 / -1;
+    }
+
+    .instrument-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .instrument-tags span {
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #101116;
+      background: linear-gradient(135deg, #7cc4ff, #ff9abc);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    body.light-mode .analysis-label {
+      color: rgba(22, 24, 32, 0.58);
+    }
+
+    body.light-mode .analysis-value {
+      color: #111827;
+    }
+
+    .menu-toggle {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      z-index: 30;
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      color: #f7f7fb;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      transition: transform 0.24s ease, background 0.24s ease;
+    }
+
+    .menu-toggle:hover {
+      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    body.light-mode .menu-toggle {
+      color: #111827;
+      background: rgba(255, 255, 255, 0.88);
+      border-color: rgba(17, 24, 39, 0.18);
+    }
+
+    .drawer-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 35;
+      pointer-events: none;
+      opacity: 0;
+      background: rgba(0, 0, 0, 0.38);
+      transition: opacity 0.28s ease;
+    }
+
+    .drawer-mask.show {
+      pointer-events: auto;
+      opacity: 1;
+    }
+
+    .game-drawer {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 40;
+      width: min(430px, calc(100vw - 28px));
+      padding: 22px;
+      overflow-y: auto;
+      color: #f7f7fb;
+      background: linear-gradient(145deg, rgba(20, 22, 32, 0.94), rgba(13, 15, 22, 0.9));
+      border-right: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 24px 0 70px rgba(0, 0, 0, 0.36);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      transform: translateX(-104%);
+      transition: transform 0.34s cubic-bezier(0.2, 0.9, 0.2, 1);
+    }
+
+    .game-drawer.show {
+      transform: translateX(0);
+    }
+
+    .drawer-header,
+    .game-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .drawer-close {
+      min-width: 42px;
+      padding: 0 12px;
+      font-size: 20px;
+    }
+
+    .game-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .game-tab {
+      min-height: 40px;
+      border-radius: 8px;
+      color: rgba(247, 247, 251, 0.76);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .game-tab:hover,
+    .game-tab.active {
+      color: #101116;
+      background: linear-gradient(135deg, #7cc4ff, #ff9abc);
+      transform: translateY(-1px);
+    }
+
+    .game-panel {
+      display: none;
+      animation: gameFade 0.26s ease both;
+    }
+
+    .game-panel.active {
+      display: block;
+    }
+
+    @keyframes gameFade {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .gomoku-board {
+      display: grid;
+      grid-template-columns: repeat(15, 1fr);
+      gap: 2px;
+      padding: 10px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #d7a85d, #b98236);
+    }
+
+    .gomoku-cell {
+      aspect-ratio: 1;
+      border-radius: 6px;
+      background: rgba(255, 241, 204, 0.34);
+      position: relative;
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .gomoku-cell:hover {
+      transform: scale(1.06);
+      background: rgba(255, 255, 255, 0.52);
+    }
+
+    .gomoku-piece {
+      position: absolute;
+      inset: 13%;
+      border-radius: 50%;
+      animation: pieceIn 0.18s ease both;
+    }
+
+    .gomoku-piece.black {
+      background: radial-gradient(circle at 35% 30%, #555, #050506 70%);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.36);
+    }
+
+    .gomoku-piece.white {
+      background: radial-gradient(circle at 35% 30%, #fff, #d8d8d8 72%);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.22);
+    }
+
+    .gomoku-cell.black::after,
+    .gomoku-cell.white::after {
+      content: "";
+      position: absolute;
+      inset: 13%;
+      border-radius: 50%;
+      animation: pieceIn 0.18s ease both;
+    }
+
+    .gomoku-cell.black::after {
+      background: radial-gradient(circle at 35% 30%, #555, #050506 70%);
+    }
+
+    .gomoku-cell.white::after {
+      background: radial-gradient(circle at 35% 30%, #fff, #d8d8d8 72%);
+    }
+
+    @keyframes pieceIn {
+      from {
+        transform: scale(0.55);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .snake-board {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 3px;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .snake-cell {
+      aspect-ratio: 1;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.06);
+      transition: background 0.12s ease, transform 0.12s ease;
+    }
+
+    .snake-cell.snake {
+      background: #72ffd1;
+      box-shadow: 0 0 12px rgba(114, 255, 209, 0.45);
+    }
+
+    .snake-cell.food {
+      background: #ff5b8d;
+      transform: scale(0.82);
+      box-shadow: 0 0 14px rgba(255, 91, 141, 0.48);
+    }
+
+    .board-2048 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .tile-2048 {
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #101116;
+      background: rgba(247, 247, 251, 0.18);
+      font-weight: 900;
+      font-size: 24px;
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .tile-2048:not(:empty) {
+      background: linear-gradient(135deg, #7cc4ff, #ff9abc);
+      animation: pieceIn 0.16s ease both;
+    }
+
+    .producer-footer {
+      width: min(1120px, calc(100% - 32px));
+      margin: -18px auto 34px;
+      color: rgba(247, 247, 251, 0.58);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    body.light-mode .producer-footer {
+      color: rgba(22, 24, 32, 0.54);
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        grid-template-columns: 1fr;
+        padding: 24px 0;
+      }
+
+      .now-playing {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .cover {
+        width: min(230px, 72vw);
+        margin: 0 auto;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        width: min(100% - 20px, 1120px);
+      }
+
+      .player-card,
+      .playlist-card,
+      .lyrics-card,
+      .analysis-card {
+        padding: 18px;
+      }
+
+      .top-bar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      h2 {
+        font-size: 19px;
+      }
+
+      .upload-button {
+        width: 100%;
+        text-align: center;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .secondary-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .analysis-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .control-button,
+      .play-button,
+      .secondary-button,
+      .quality-select,
+      .upload-button {
+        min-height: 54px;
+        font-size: 16px;
+      }
+
+      .theme-toggle {
+        min-height: 46px;
+        font-size: 14px;
+      }
+
+      .volume-area {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+      }
+
+      .wave-canvas {
+        height: 58px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button id="menuBtn" class="menu-toggle" type="button" aria-label="打开菜单">☰</button>
+
+  <aside id="gameDrawer" class="game-drawer" aria-label="小游戏菜单">
+    <div class="drawer-header">
+      <div>
+        <p class="eyebrow">Mini Games</p>
+        <h2>小游戏</h2>
+      </div>
+      <button id="closeDrawerBtn" class="secondary-button drawer-close" type="button" aria-label="关闭菜单">×</button>
+    </div>
+
+    <div class="game-tabs">
+      <button class="game-tab active" type="button" data-game="gomoku">五子棋</button>
+      <button class="game-tab" type="button" data-game="snake">贪吃蛇</button>
+      <button class="game-tab" type="button" data-game="twenty48">2048</button>
+    </div>
+
+    <section id="gomokuGame" class="game-panel active">
+      <div class="game-toolbar">
+        <strong id="gomokuStatus">黑棋先手</strong>
+        <button id="resetGomokuBtn" class="secondary-button" type="button">重开</button>
+      </div>
+      <div id="gomokuBoard" class="gomoku-board"></div>
+    </section>
+
+    <section id="snakeGame" class="game-panel">
+      <div class="game-toolbar">
+        <strong id="snakeStatus">分数 0</strong>
+        <button id="resetSnakeBtn" class="secondary-button" type="button">开始</button>
+      </div>
+      <div id="snakeBoard" class="snake-board"></div>
+    </section>
+
+    <section id="twenty48Game" class="game-panel">
+      <div class="game-toolbar">
+        <strong id="score2048">分数 0</strong>
+        <button id="reset2048Btn" class="secondary-button" type="button">重开</button>
+      </div>
+      <div id="board2048" class="board-2048"></div>
+    </section>
+  </aside>
+  <div id="drawerMask" class="drawer-mask"></div>
+
+  <main class="app">
+    <section class="player-card">
+      <div class="wave-wrap">
+        <canvas id="waveCanvas" class="wave-canvas"></canvas>
+      </div>
+
+      <div class="top-bar">
+        <div>
+          <p class="eyebrow">Local Music Player</p>
+          <h1>本地音乐播放器</h1>
+        </div>
+
+        <div class="top-actions">
+          <label class="upload-button" for="musicInput">上传音乐</label>
+          <button id="themeBtn" class="secondary-button theme-toggle" type="button" aria-label="切换深浅色模式">浅色</button>
+        </div>
+        <input id="musicInput" class="file-input" type="file" accept="audio/*,image/*" multiple>
+      </div>
+
+      <div class="now-playing">
+        <div id="coverBox" class="cover">
+          <img id="coverImage" alt="歌曲封面">
+          <div class="disc"></div>
+        </div>
+
+        <div class="song-info">
+          <p class="label">正在播放</p>
+          <h2 id="songTitle">请选择音乐文件</h2>
+          <p id="songHint">支持一次选择多首歌曲，会自动读取 MP3 内嵌封面和歌词</p>
+        </div>
+      </div>
+
+      <div class="progress-area">
+        <div class="time-row">
+          <span id="currentTime">00:00</span>
+          <span id="duration">00:00</span>
+        </div>
+        <input id="progressBar" class="slider" type="range" min="0" max="100" value="0">
+      </div>
+
+      <div class="controls">
+        <button id="prevBtn" class="control-button" type="button" aria-label="上一首">上一首</button>
+        <button id="playBtn" class="play-button" type="button" aria-label="播放或暂停">播放</button>
+        <button id="nextBtn" class="control-button" type="button" aria-label="下一首">下一首</button>
+      </div>
+
+      <div class="secondary-controls">
+        <button id="favoriteBtn" class="secondary-button" type="button" aria-label="收藏当前歌曲">收藏</button>
+        <button id="modeBtn" class="secondary-button" type="button" aria-label="切换播放模式">顺序播放</button>
+        <button id="analysisBtn" class="secondary-button" type="button" aria-label="显示专业观察">专业观察</button>
+      </div>
+
+      <div class="volume-area">
+        <span>音量</span>
+        <input id="volumeBar" class="slider" type="range" min="0" max="1" step="0.01" value="0.8">
+        <span id="volumeText">80%</span>
+      </div>
+
+      <div class="quality-area">
+        <div class="quality-title">
+          <span>音质选择</span>
+          <strong id="qualityText">原声带</strong>
+        </div>
+        <select id="qualitySelect" class="quality-select" aria-label="音质选择">
+          <option value="master">无敌母带级别——对应原声带</option>
+          <option value="standard">标准——轻微压缩</option>
+          <option value="battle">叙利亚战损音质——强力压缩</option>
+          <option value="crush16">无敌炸裂超级恶心的音质——压缩至16bit</option>
+          <option value="mystery">你猜猜是什么</option>
+        </select>
+      </div>
+    </section>
+
+    <div class="side-column">
+      <section class="playlist-card">
+        <div class="playlist-header">
+          <h2>播放列表</h2>
+          <span id="songCount">0 首</span>
+        </div>
+
+        <ul id="playlist" class="playlist">
+          <li class="empty">上传音乐后，歌曲会显示在这里</li>
+        </ul>
+      </section>
+
+      <section class="lyrics-card">
+        <div class="lyrics-header">
+          <h2>歌词</h2>
+          <span id="lyricsStatus">等待音乐</span>
+        </div>
+        <div id="lyricsBox" class="lyrics-box empty">如果歌曲文件附带歌词，这里会显示歌词内容</div>
+      </section>
+
+      <section id="analysisCard" class="analysis-card">
+        <div class="lyrics-header">
+          <h2>专业观察</h2>
+          <span id="analysisStatus">等待分析</span>
+        </div>
+        <div class="analysis-grid">
+          <div class="analysis-item">
+            <p class="analysis-label">人声主调</p>
+            <p id="vocalKeyValue" class="analysis-value">--</p>
+          </div>
+          <div class="analysis-item instrument-list">
+            <p class="analysis-label">显示乐器种类</p>
+            <div id="instrumentTags" class="instrument-tags">
+              <span>等待歌曲</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="producer-footer">制作人信息 JasonChen</footer>
+
+  <audio id="audio"></audio>
+
+  <script>
+    const musicInput = document.getElementById("musicInput");
+    const audio = document.getElementById("audio");
+    const songTitle = document.getElementById("songTitle");
+    const songHint = document.getElementById("songHint");
+    const currentTimeText = document.getElementById("currentTime");
+    const durationText = document.getElementById("duration");
+    const progressBar = document.getElementById("progressBar");
+    const volumeBar = document.getElementById("volumeBar");
+    const volumeText = document.getElementById("volumeText");
+    const qualitySelect = document.getElementById("qualitySelect");
+    const qualityText = document.getElementById("qualityText");
+    const playBtn = document.getElementById("playBtn");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const favoriteBtn = document.getElementById("favoriteBtn");
+    const modeBtn = document.getElementById("modeBtn");
+    const analysisBtn = document.getElementById("analysisBtn");
+    const themeBtn = document.getElementById("themeBtn");
+    const playlist = document.getElementById("playlist");
+    const songCount = document.getElementById("songCount");
+    const coverBox = document.getElementById("coverBox");
+    const coverImage = document.getElementById("coverImage");
+    const lyricsBox = document.getElementById("lyricsBox");
+    const lyricsStatus = document.getElementById("lyricsStatus");
+    const analysisCard = document.getElementById("analysisCard");
+    const analysisStatus = document.getElementById("analysisStatus");
+    const vocalKeyValue = document.getElementById("vocalKeyValue");
+    const instrumentTags = document.getElementById("instrumentTags");
+    const waveCanvas = document.getElementById("waveCanvas");
+    const waveCtx = waveCanvas.getContext("2d");
+    const menuBtn = document.getElementById("menuBtn");
+    const gameDrawer = document.getElementById("gameDrawer");
+    const drawerMask = document.getElementById("drawerMask");
+    const closeDrawerBtn = document.getElementById("closeDrawerBtn");
+    const gameTabs = document.querySelectorAll(".game-tab");
+    const gamePanels = document.querySelectorAll(".game-panel");
+    const gomokuBoard = document.getElementById("gomokuBoard");
+    const gomokuStatus = document.getElementById("gomokuStatus");
+    const resetGomokuBtn = document.getElementById("resetGomokuBtn");
+    const snakeBoard = document.getElementById("snakeBoard");
+    const snakeStatus = document.getElementById("snakeStatus");
+    const resetSnakeBtn = document.getElementById("resetSnakeBtn");
+    const board2048 = document.getElementById("board2048");
+    const score2048 = document.getElementById("score2048");
+    const reset2048Btn = document.getElementById("reset2048Btn");
+
+    let songs = [];
+    let currentIndex = 0;
+    let audioContext;
+    let audioSource;
+    let analyser;
+    let compressor;
+    let lowPassFilter;
+    let bitCrusher;
+    let frequencyData;
+    let timeData;
+    let waveAnimationId;
+    let visualizerBlend = 0;
+    let lastRealtimeKeyUpdate = 0;
+    let playMode = "order";
+    let themeMode = localStorage.getItem("themeMode") || "dark";
+    let favorites = new Set(JSON.parse(localStorage.getItem("favoriteSongs") || "[]"));
+
+    audio.volume = 0.8;
+
+    const qualityNames = {
+      master: "原声带",
+      standard: "轻微压缩",
+      battle: "强力压缩",
+      crush16: "压缩至16bit",
+      mystery: "8bit严重失真"
+    };
+
+    const modeNames = {
+      order: "顺序播放",
+      random: "随机播放",
+      single: "单曲循环"
+    };
+
+    function formatTime(seconds) {
+      if (Number.isNaN(seconds) || seconds < 0) {
+        return "00:00";
+      }
+
+      const minutes = Math.floor(seconds / 60);
+      const restSeconds = Math.floor(seconds % 60);
+      return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+    }
+
+    function getCleanName(fileName) {
+      return fileName.replace(/\.[^/.]+$/, "");
+    }
+
+    function getFileExtension(fileName) {
+      const match = fileName.toLowerCase().match(/\.([a-z0-9]+)$/);
+      return match ? match[1] : "";
+    }
+
+    function isAudioFile(file) {
+      const audioExtensions = ["mp3", "wav", "ogg", "m4a", "aac", "flac", "webm"];
+      return file.type.startsWith("audio/") || audioExtensions.includes(getFileExtension(file.name));
+    }
+
+    function isImageFile(file) {
+      const imageExtensions = ["jpg", "jpeg", "png", "webp", "gif"];
+      return file.type.startsWith("image/") || imageExtensions.includes(getFileExtension(file.name));
+    }
+
+    function findCoverImageFile(audioFile, imageFiles, audioCount) {
+      const audioName = getCleanName(audioFile.name).toLowerCase();
+      const sameNameImage = imageFiles.find((imageFile) => getCleanName(imageFile.name).toLowerCase() === audioName);
+
+      if (sameNameImage) {
+        return sameNameImage;
+      }
+
+      return audioCount === 1 ? imageFiles[0] : null;
+    }
+
+    function getNoteName(noteIndex) {
+      const names = ["C", "C# / Db", "D", "D# / Eb", "E", "F", "F# / Gb", "G", "G# / Ab", "A", "A# / Bb", "B"];
+      return names[((noteIndex % 12) + 12) % 12];
+    }
+
+    function goertzelPower(samples, sampleRate, frequency, start, size) {
+      const omega = (2 * Math.PI * frequency) / sampleRate;
+      const coefficient = 2 * Math.cos(omega);
+      let previous = 0;
+      let previous2 = 0;
+
+      for (let i = 0; i < size; i += 1) {
+        const sample = samples[start + i] || 0;
+        const current = sample + coefficient * previous - previous2;
+        previous2 = previous;
+        previous = current;
+      }
+
+      return previous2 * previous2 + previous * previous - coefficient * previous * previous2;
+    }
+
+    function getBandEnergy(samples, sampleRate, minFrequency, maxFrequency, start, size) {
+      let energy = 0;
+      let count = 0;
+
+      for (let frequency = minFrequency; frequency <= maxFrequency; frequency *= 1.26) {
+        energy += goertzelPower(samples, sampleRate, frequency, start, size);
+        count += 1;
+      }
+
+      return count ? energy / count : 0;
+    }
+
+    function analyzeDecodedBuffer(audioBuffer) {
+      const sampleRate = audioBuffer.sampleRate;
+      const raw = audioBuffer.getChannelData(0);
+      const maxSamples = Math.min(raw.length, sampleRate * 80);
+      const offset = Math.max(0, Math.floor((raw.length - maxSamples) / 2));
+      const samples = raw.slice(offset, offset + maxSamples);
+      const windowSize = 4096;
+      const hop = Math.max(windowSize, Math.floor(samples.length / 36));
+      const chroma = new Array(12).fill(0);
+      let lowEnergy = 0;
+      let midEnergy = 0;
+      let highEnergy = 0;
+      let transientCount = 0;
+      let previousRms = 0;
+      let windows = 0;
+
+      for (let start = 0; start + windowSize < samples.length; start += hop) {
+        let rms = 0;
+
+        for (let i = 0; i < windowSize; i += 1) {
+          rms += samples[start + i] * samples[start + i];
+        }
+
+        rms = Math.sqrt(rms / windowSize);
+
+        if (previousRms > 0 && rms > previousRms * 1.85) {
+          transientCount += 1;
+        }
+
+        previousRms = rms;
+        lowEnergy += getBandEnergy(samples, sampleRate, 45, 180, start, windowSize);
+        midEnergy += getBandEnergy(samples, sampleRate, 180, 1600, start, windowSize);
+        highEnergy += getBandEnergy(samples, sampleRate, 2500, 9000, start, windowSize);
+
+        for (let note = 0; note < 12; note += 1) {
+          for (let octave = 2; octave <= 6; octave += 1) {
+            const midi = 12 * (octave + 1) + note;
+            const frequency = 440 * Math.pow(2, (midi - 69) / 12);
+
+            if (frequency >= 80 && frequency <= 1100) {
+              chroma[note] += goertzelPower(samples, sampleRate, frequency, start, windowSize);
+            }
+          }
+        }
+
+        windows += 1;
+      }
+
+      const bestNote = chroma.indexOf(Math.max(...chroma));
+      const totalEnergy = lowEnergy + midEnergy + highEnergy || 1;
+      const lowRatio = lowEnergy / totalEnergy;
+      const midRatio = midEnergy / totalEnergy;
+      const highRatio = highEnergy / totalEnergy;
+      const transientRatio = transientCount / Math.max(1, windows);
+      const subEnergy = getBandEnergy(samples, sampleRate, 30, 65, 0, Math.min(windowSize, samples.length));
+      const bassEnergy = getBandEnergy(samples, sampleRate, 65, 180, 0, Math.min(windowSize, samples.length));
+      const lowMidEnergy = getBandEnergy(samples, sampleRate, 180, 450, 0, Math.min(windowSize, samples.length));
+      const vocalEnergy = getBandEnergy(samples, sampleRate, 450, 1400, 0, Math.min(windowSize, samples.length));
+      const presenceEnergy = getBandEnergy(samples, sampleRate, 1400, 4200, 0, Math.min(windowSize, samples.length));
+      const airEnergy = getBandEnergy(samples, sampleRate, 4200, 12000, 0, Math.min(windowSize, samples.length));
+      const detailedTotal = subEnergy + bassEnergy + lowMidEnergy + vocalEnergy + presenceEnergy + airEnergy || 1;
+      const subRatio = subEnergy / detailedTotal;
+      const bassRatio = bassEnergy / detailedTotal;
+      const lowMidRatio = lowMidEnergy / detailedTotal;
+      const vocalRatio = vocalEnergy / detailedTotal;
+      const presenceRatio = presenceEnergy / detailedTotal;
+      const airRatio = airEnergy / detailedTotal;
+      const instruments = [];
+
+      if (subRatio > 0.08) instruments.push("底鼓 / 超低频");
+      if (bassRatio > 0.14 || lowRatio > 0.18) instruments.push("贝斯 / 低音乐器");
+      if (transientRatio > 0.1) instruments.push("鼓组 / 打击乐");
+      if (transientRatio > 0.18 && airRatio > 0.12) instruments.push("电子鼓 / 采样鼓");
+      if (vocalRatio > 0.16 || midRatio > 0.34) instruments.push("人声");
+      if (lowMidRatio > 0.13 && presenceRatio > 0.11) instruments.push("钢琴");
+      if (lowMidRatio > 0.1 && transientRatio > 0.05) instruments.push("键盘 / 电钢琴");
+      if (presenceRatio > 0.13 && lowMidRatio > 0.09) instruments.push("吉他");
+      if (presenceRatio > 0.16 && transientRatio > 0.08) instruments.push("电吉他");
+      if (lowMidRatio > 0.12 && airRatio < 0.2 && transientRatio < 0.14) instruments.push("木吉他");
+      if (vocalRatio > 0.11 && presenceRatio > 0.09 && transientRatio < 0.12) instruments.push("弦乐");
+      if (vocalRatio > 0.1 && presenceRatio > 0.12 && airRatio < 0.16) instruments.push("管乐");
+      if (presenceRatio > 0.15 && lowMidRatio > 0.11 && airRatio > 0.08) instruments.push("铜管");
+      if (airRatio > 0.18 || highRatio > 0.22) instruments.push("镲片 / 高频打击");
+      if (airRatio > 0.15 && lowRatio < 0.16) instruments.push("笛 / 高频旋律");
+      if (highRatio > 0.12 && lowRatio < 0.16) instruments.push("合成器 / 氛围Pad");
+
+      if (instruments.length === 0) {
+        instruments.push("综合混音乐器");
+      }
+
+      return {
+        key: getNoteName(bestNote),
+        instruments: Array.from(new Set(instruments)).slice(0, 6)
+      };
+    }
+
+    function estimatePitchFromWaveform(samples, sampleRate) {
+      let rms = 0;
+
+      for (let i = 0; i < samples.length; i += 1) {
+        rms += samples[i] * samples[i];
+      }
+
+      rms = Math.sqrt(rms / samples.length);
+
+      if (rms < 0.015) {
+        return null;
+      }
+
+      const minLag = Math.floor(sampleRate / 1000);
+      const maxLag = Math.min(Math.floor(sampleRate / 70), samples.length - 1);
+      let bestLag = -1;
+      let bestScore = 0;
+
+      for (let lag = minLag; lag <= maxLag; lag += 1) {
+        let score = 0;
+
+        for (let i = 0; i < samples.length - lag; i += 1) {
+          score += samples[i] * samples[i + lag];
+        }
+
+        score /= samples.length - lag;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestLag = lag;
+        }
+      }
+
+      if (bestLag < 0 || bestScore < 0.004) {
+        return null;
+      }
+
+      return sampleRate / bestLag;
+    }
+
+    function updateRealtimeVocalKey() {
+      if (!analysisCard.classList.contains("show") || !analyser || !timeData || audio.paused) {
+        return;
+      }
+
+      const now = performance.now();
+
+      if (now - lastRealtimeKeyUpdate < 140) {
+        return;
+      }
+
+      lastRealtimeKeyUpdate = now;
+      analyser.getFloatTimeDomainData(timeData);
+
+      const pitch = estimatePitchFromWaveform(timeData, audioContext ? audioContext.sampleRate : 44100);
+
+      if (!pitch) {
+        return;
+      }
+
+      const midi = Math.round(69 + 12 * Math.log2(pitch / 440));
+      const noteIndex = ((midi % 12) + 12) % 12;
+      vocalKeyValue.textContent = `实时 ${getNoteName(noteIndex)}`;
+      analysisStatus.textContent = "实时监听";
+    }
+
+    async function analyzeAudioFile(file) {
+      const analysisContext = new (window.AudioContext || window.webkitAudioContext)();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await analysisContext.decodeAudioData(arrayBuffer);
+      const result = analyzeDecodedBuffer(audioBuffer);
+      await analysisContext.close();
+      return result;
+    }
+
+    function getSongKey(song) {
+      return song ? song.name : "";
+    }
+
+    function saveFavorites() {
+      localStorage.setItem("favoriteSongs", JSON.stringify(Array.from(favorites)));
+    }
+
+    function updateFavoriteButton() {
+      const currentSong = songs[currentIndex];
+      const isFavorite = favorites.has(getSongKey(currentSong));
+      favoriteBtn.textContent = isFavorite ? "已收藏" : "收藏";
+      favoriteBtn.classList.toggle("active", isFavorite);
+    }
+
+    function updateModeButton() {
+      modeBtn.textContent = modeNames[playMode];
+    }
+
+    function updateThemeMode() {
+      const isLight = themeMode === "light";
+      document.body.classList.toggle("light-mode", isLight);
+      themeBtn.textContent = isLight ? "深色" : "浅色";
+      localStorage.setItem("themeMode", themeMode);
+    }
+
+    function setPlayingState(isPlaying) {
+      playBtn.textContent = isPlaying ? "暂停" : "播放";
+      coverBox.classList.toggle("is-playing", isPlaying);
+    }
+
+    function createBitCrusherNode(context) {
+      const node = context.createScriptProcessor(4096, 2, 2);
+      let heldSampleLeft = 0;
+      let heldSampleRight = 0;
+      let step = 0;
+      const holdFrames = 5;
+      const levels = 32;
+
+      node.onaudioprocess = (event) => {
+        const inputLeft = event.inputBuffer.getChannelData(0);
+        const outputLeft = event.outputBuffer.getChannelData(0);
+        const inputRight = event.inputBuffer.numberOfChannels > 1 ? event.inputBuffer.getChannelData(1) : inputLeft;
+        const outputRight = event.outputBuffer.numberOfChannels > 1 ? event.outputBuffer.getChannelData(1) : outputLeft;
+
+        for (let i = 0; i < inputLeft.length; i += 1) {
+          if (step % holdFrames === 0) {
+            heldSampleLeft = Math.round(inputLeft[i] * levels) / levels;
+            heldSampleRight = Math.round(inputRight[i] * levels) / levels;
+          }
+
+          outputLeft[i] = heldSampleLeft;
+          outputRight[i] = heldSampleRight;
+          step += 1;
+        }
+      };
+
+      return node;
+    }
+
+    function syncCanvasSize() {
+      const rect = waveCanvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      waveCanvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      waveCanvas.height = Math.max(1, Math.floor(rect.height * ratio));
+      waveCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function drawWave() {
+      syncCanvasSize();
+
+      const width = waveCanvas.clientWidth;
+      const height = waveCanvas.clientHeight;
+      waveCtx.clearRect(0, 0, width, height);
+
+      const gradient = waveCtx.createLinearGradient(0, 0, width, 0);
+      gradient.addColorStop(0, "#7cc4ff");
+      gradient.addColorStop(0.5, "#f7f7fb");
+      gradient.addColorStop(1, "#ff9abc");
+
+      waveCtx.shadowBlur = 18;
+      waveCtx.shadowColor = "rgba(124, 196, 255, 0.85)";
+
+      const isActive = Boolean(analyser && frequencyData && !audio.paused);
+      const targetBlend = isActive ? 1 : 0;
+      visualizerBlend += (targetBlend - visualizerBlend) * 0.08;
+
+      if (!isActive && visualizerBlend < 0.02) {
+        waveCtx.lineWidth = 3;
+        waveCtx.strokeStyle = "rgba(247, 247, 251, 0.72)";
+        waveCtx.shadowBlur = 8;
+        waveCtx.beginPath();
+        waveCtx.moveTo(18, height / 2);
+        waveCtx.lineTo(width - 18, height / 2);
+        waveCtx.stroke();
+        waveAnimationId = requestAnimationFrame(drawWave);
+        return;
+      }
+
+      if (isActive) {
+        analyser.getByteFrequencyData(frequencyData);
+        updateRealtimeVocalKey();
+      }
+
+      waveCtx.lineWidth = 2;
+      waveCtx.strokeStyle = `rgba(247, 247, 251, ${0.55 * (1 - visualizerBlend)})`;
+      waveCtx.shadowBlur = 6;
+      waveCtx.beginPath();
+      waveCtx.moveTo(18, height / 2);
+      waveCtx.lineTo(width - 18, height / 2);
+      waveCtx.stroke();
+
+      waveCtx.fillStyle = gradient;
+      waveCtx.globalAlpha = Math.max(0.08, visualizerBlend);
+      waveCtx.shadowBlur = 18 * visualizerBlend;
+
+      const barCount = 34;
+      const gap = 5;
+      const barWidth = Math.max(5, (width - gap * (barCount - 1) - 24) / barCount);
+      const maxHalfHeight = height * 0.38;
+      const centerY = height / 2;
+
+      for (let i = 0; i < barCount; i += 1) {
+        const frequencyIndex = Math.floor((i / barCount) * frequencyData.length);
+        const liveVolume = isActive ? frequencyData[frequencyIndex] / 255 : 0;
+        const easingWave = Math.sin(Date.now() / 260 + i * 0.55) * 0.06 + 0.08;
+        const volume = Math.max(liveVolume, easingWave) * visualizerBlend;
+        const pulse = 0.16 + volume * 0.84;
+        const halfHeight = Math.max(4, pulse * maxHalfHeight);
+        const x = 12 + i * (barWidth + gap);
+
+        waveCtx.beginPath();
+        waveCtx.roundRect(x, centerY - halfHeight, barWidth, halfHeight, 5);
+        waveCtx.roundRect(x, centerY, barWidth, halfHeight, 5);
+        waveCtx.fill();
+      }
+
+      waveCtx.globalAlpha = 1;
+      waveAnimationId = requestAnimationFrame(drawWave);
+    }
+
+    function setupAudioEffects() {
+      if (audioContext) {
+        return;
+      }
+
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+      if (!AudioContextClass) {
+        songHint.textContent = "当前浏览器不支持音质处理，但仍可正常播放";
+        return;
+      }
+
+      audioContext = new AudioContextClass();
+      audioSource = audioContext.createMediaElementSource(audio);
+      analyser = audioContext.createAnalyser();
+      compressor = audioContext.createDynamicsCompressor();
+      lowPassFilter = audioContext.createBiquadFilter();
+      bitCrusher = createBitCrusherNode(audioContext);
+
+      analyser.fftSize = 2048;
+      frequencyData = new Uint8Array(analyser.frequencyBinCount);
+      timeData = new Float32Array(analyser.fftSize);
+      lowPassFilter.type = "lowpass";
+
+      audioSource.connect(analyser);
+      applyQualityEffect();
+    }
+
+    function applyQualityEffect() {
+      const selectedQuality = qualitySelect.value;
+      qualityText.textContent = qualityNames[selectedQuality];
+      document.body.classList.toggle("mystery-mode", selectedQuality === "mystery");
+      audio.playbackRate = selectedQuality === "mystery" ? 1.22 : 1;
+
+      if (!audioContext || !analyser) {
+        return;
+      }
+
+      analyser.disconnect();
+      compressor.disconnect();
+      lowPassFilter.disconnect();
+      bitCrusher.disconnect();
+
+      if (selectedQuality === "master") {
+        analyser.connect(audioContext.destination);
+      }
+
+      if (selectedQuality === "standard") {
+        compressor.threshold.value = -18;
+        compressor.knee.value = 20;
+        compressor.ratio.value = 3;
+        compressor.attack.value = 0.01;
+        compressor.release.value = 0.18;
+        analyser.connect(compressor);
+        compressor.connect(audioContext.destination);
+      }
+
+      if (selectedQuality === "battle") {
+        compressor.threshold.value = -42;
+        compressor.knee.value = 0;
+        compressor.ratio.value = 18;
+        compressor.attack.value = 0;
+        compressor.release.value = 0.05;
+        lowPassFilter.frequency.value = 2600;
+        lowPassFilter.Q.value = 1;
+        analyser.connect(lowPassFilter);
+        lowPassFilter.connect(compressor);
+        compressor.connect(audioContext.destination);
+      }
+
+      if (selectedQuality === "crush16") {
+        compressor.threshold.value = -55;
+        compressor.knee.value = 0;
+        compressor.ratio.value = 20;
+        compressor.attack.value = 0;
+        compressor.release.value = 0.03;
+        lowPassFilter.frequency.value = 1600;
+        lowPassFilter.Q.value = 1.4;
+        analyser.connect(lowPassFilter);
+        lowPassFilter.connect(compressor);
+        compressor.connect(audioContext.destination);
+      }
+
+      if (selectedQuality === "mystery") {
+        compressor.threshold.value = -58;
+        compressor.knee.value = 0;
+        compressor.ratio.value = 20;
+        compressor.attack.value = 0;
+        compressor.release.value = 0.02;
+        lowPassFilter.frequency.value = 1200;
+        lowPassFilter.Q.value = 1.8;
+        analyser.connect(bitCrusher);
+        bitCrusher.connect(lowPassFilter);
+        lowPassFilter.connect(compressor);
+        compressor.connect(audioContext.destination);
+      }
+    }
+
+    function readSynchsafe(bytes, offset) {
+      return (bytes[offset] << 21) | (bytes[offset + 1] << 14) | (bytes[offset + 2] << 7) | bytes[offset + 3];
+    }
+
+    function readFrameSize(bytes, offset, version) {
+      if (version === 4) {
+        return readSynchsafe(bytes, offset);
+      }
+
+      return (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+    }
+
+    function decodeText(bytes, encoding) {
+      let decoderName = "iso-8859-1";
+
+      if (encoding === 1) {
+        decoderName = "utf-16";
+      }
+
+      if (encoding === 2) {
+        decoderName = "utf-16be";
+      }
+
+      if (encoding === 3) {
+        decoderName = "utf-8";
+      }
+
+      try {
+        return new TextDecoder(decoderName).decode(bytes).replace(/\u0000/g, "").trim();
+      } catch (error) {
+        return new TextDecoder("utf-8").decode(bytes).replace(/\u0000/g, "").trim();
+      }
+    }
+
+    function findTerminator(bytes, start, encoding) {
+      if (encoding === 1 || encoding === 2) {
+        for (let i = start; i < bytes.length - 1; i += 2) {
+          if (bytes[i] === 0 && bytes[i + 1] === 0) {
+            return i + 2;
+          }
+        }
+      } else {
+        for (let i = start; i < bytes.length; i += 1) {
+          if (bytes[i] === 0) {
+            return i + 1;
+          }
+        }
+      }
+
+      return bytes.length;
+    }
+
+    function parseLyricsFrame(frameBytes) {
+      const encoding = frameBytes[0];
+      let cursor = 4;
+      cursor = findTerminator(frameBytes, cursor, encoding);
+      return decodeText(frameBytes.slice(cursor), encoding);
+    }
+
+    async function readAudioMetadata(file) {
+      const emptyMetadata = {
+        lyrics: ""
+      };
+
+      if (!file.name.toLowerCase().endsWith(".mp3")) {
+        return emptyMetadata;
+      }
+
+      const bytes = new Uint8Array(await file.arrayBuffer());
+
+      if (bytes[0] !== 73 || bytes[1] !== 68 || bytes[2] !== 51) {
+        return emptyMetadata;
+      }
+
+      const version = bytes[3];
+      const tagSize = readSynchsafe(bytes, 6);
+      let offset = 10;
+      const end = Math.min(bytes.length, 10 + tagSize);
+      let lyrics = "";
+
+      while (offset + 10 <= end) {
+        const isVersionTwo = version === 2;
+        const headerSize = isVersionTwo ? 6 : 10;
+        const frameIdSize = isVersionTwo ? 3 : 4;
+        const frameId = new TextDecoder("iso-8859-1").decode(bytes.slice(offset, offset + frameIdSize));
+        const frameSize = isVersionTwo
+          ? (bytes[offset + 3] << 16) | (bytes[offset + 4] << 8) | bytes[offset + 5]
+          : readFrameSize(bytes, offset + 4, version);
+
+        if (!frameId.trim() || frameSize <= 0) {
+          break;
+        }
+
+        const frameStart = offset + headerSize;
+        const frameEnd = Math.min(frameStart + frameSize, end);
+        const frameBytes = bytes.slice(frameStart, frameEnd);
+
+        if ((frameId === "USLT" || frameId === "SYLT") && !lyrics) {
+          lyrics = parseLyricsFrame(frameBytes);
+        }
+
+        offset = frameEnd;
+      }
+
+      return {
+        lyrics
+      };
+    }
+
+    function setCover(song) {
+      if (song.coverUrl) {
+        coverImage.src = song.coverUrl;
+        coverBox.classList.add("has-image");
+      } else {
+        coverImage.removeAttribute("src");
+        coverBox.classList.remove("has-image");
+      }
+    }
+
+    function setLyrics(song) {
+      if (song.lyrics) {
+        lyricsBox.classList.remove("empty");
+        lyricsBox.textContent = song.lyrics;
+        lyricsStatus.textContent = "已读取";
+      } else {
+        lyricsBox.classList.add("empty");
+        lyricsBox.textContent = "这首歌没有读取到内嵌歌词";
+        lyricsStatus.textContent = "无歌词";
+      }
+    }
+
+    function setAnalysis(song) {
+      if (!song) {
+        analysisStatus.textContent = "等待分析";
+        vocalKeyValue.textContent = "--";
+        instrumentTags.innerHTML = "<span>等待歌曲</span>";
+        return;
+      }
+
+      if (song.analysisStatus === "pending") {
+        analysisStatus.textContent = "分析中";
+        vocalKeyValue.textContent = "分析中";
+        instrumentTags.innerHTML = "<span>正在识别</span>";
+        return;
+      }
+
+      if (song.analysisStatus === "failed") {
+        analysisStatus.textContent = "分析失败";
+        vocalKeyValue.textContent = "--";
+        instrumentTags.innerHTML = "<span>无法识别</span>";
+        return;
+      }
+
+      if (!song.analysis) {
+        analysisStatus.textContent = "等待分析";
+        vocalKeyValue.textContent = "--";
+        instrumentTags.innerHTML = "<span>等待歌曲</span>";
+        return;
+      }
+
+      analysisStatus.textContent = "智能识别";
+      vocalKeyValue.textContent = song.analysis.key;
+      instrumentTags.innerHTML = song.analysis.instruments.map((instrument) => `<span>${instrument}</span>`).join("");
+    }
+
+    function renderPlaylist() {
+      playlist.innerHTML = "";
+      songCount.textContent = `${songs.length} 首`;
+
+      if (songs.length === 0) {
+        const emptyItem = document.createElement("li");
+        emptyItem.className = "empty";
+        emptyItem.textContent = "上传音乐后，歌曲会显示在这里";
+        playlist.appendChild(emptyItem);
+        return;
+      }
+
+      songs.forEach((song, index) => {
+        const item = document.createElement("li");
+
+        if (index === currentIndex) {
+          item.classList.add("active");
+        }
+
+        item.innerHTML = `
+          <span class="song-name">${song.name}</span>
+          <span class="song-meta">
+            <span class="favorite-mark">${favorites.has(getSongKey(song)) ? "♥" : ""}</span>
+            <span class="song-number">${index + 1}</span>
+          </span>
+        `;
+
+        item.addEventListener("click", () => {
+          loadSong(index);
+          playSong();
+        });
+
+        playlist.appendChild(item);
+      });
+    }
+
+    function loadSong(index) {
+      if (songs.length === 0) {
+        return;
+      }
+
+      currentIndex = index;
+      audio.src = songs[currentIndex].url;
+      songTitle.textContent = songs[currentIndex].name;
+      const coverMessages = {
+        file: "已使用文件封面"
+      };
+      songHint.textContent = coverMessages[songs[currentIndex].coverSource] || "未选择文件封面，显示默认唱片";
+      progressBar.value = 0;
+      currentTimeText.textContent = "00:00";
+      durationText.textContent = "00:00";
+      setCover(songs[currentIndex]);
+      setLyrics(songs[currentIndex]);
+      setAnalysis(songs[currentIndex]);
+      updateFavoriteButton();
+      renderPlaylist();
+    }
+
+    async function playSong() {
+      if (songs.length === 0) {
+        songHint.textContent = "请先上传至少一首音乐";
+        return;
+      }
+
+      setupAudioEffects();
+
+      if (audioContext && audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
+      audio.play();
+      setPlayingState(true);
+    }
+
+    function pauseSong() {
+      audio.pause();
+      setPlayingState(false);
+    }
+
+    function playPreviousSong() {
+      if (songs.length === 0) {
+        return;
+      }
+
+      const previousIndex = (currentIndex - 1 + songs.length) % songs.length;
+      loadSong(previousIndex);
+      playSong();
+    }
+
+    function getRandomSongIndex() {
+      if (songs.length <= 1) {
+        return currentIndex;
+      }
+
+      let randomIndex = currentIndex;
+
+      while (randomIndex === currentIndex) {
+        randomIndex = Math.floor(Math.random() * songs.length);
+      }
+
+      return randomIndex;
+    }
+
+    function playNextSong() {
+      if (songs.length === 0) {
+        return;
+      }
+
+      let nextIndex = (currentIndex + 1) % songs.length;
+
+      if (playMode === "single") {
+        nextIndex = currentIndex;
+      }
+
+      if (playMode === "random") {
+        nextIndex = getRandomSongIndex();
+      }
+
+      loadSong(nextIndex);
+      playSong();
+    }
+
+    async function loadMusicFiles(fileList) {
+      const selectedFiles = Array.from(fileList);
+      const files = selectedFiles.filter(isAudioFile);
+      const imageFiles = selectedFiles.filter(isImageFile);
+      
+      if (files.length === 0) {
+        songHint.textContent = "请拖入或选择音频文件";
+        return;
+      }
+
+      songHint.textContent = "正在读取封面和歌词...";
+      lyricsBox.classList.add("empty");
+      lyricsBox.textContent = "正在检查歌曲是否附带歌词";
+      lyricsStatus.textContent = "读取中";
+
+      const newSongs = await Promise.all(files.map(async (file) => {
+        const metadata = await readAudioMetadata(file);
+        const coverImageFile = findCoverImageFile(file, imageFiles, files.length);
+        const coverUrl = coverImageFile ? URL.createObjectURL(coverImageFile) : "";
+
+        return {
+          name: getCleanName(file.name),
+          url: URL.createObjectURL(file),
+          coverUrl,
+          coverSource: coverUrl ? "file" : "",
+          lyrics: metadata.lyrics,
+          analysis: null,
+          analysisStatus: "pending",
+          sourceFile: file
+        };
+      }));
+
+      const shouldAutoPlay = songs.length === 0;
+      songs = songs.concat(newSongs);
+
+      if (shouldAutoPlay) {
+        currentIndex = 0;
+        loadSong(currentIndex);
+        playSong();
+      } else {
+        songHint.textContent = `已追加 ${newSongs.length} 首歌曲到播放列表`;
+        renderPlaylist();
+      }
+
+      newSongs.forEach(async (song) => {
+        try {
+          song.analysis = await analyzeAudioFile(song.sourceFile);
+          song.analysisStatus = "done";
+        } catch (error) {
+          song.analysisStatus = "failed";
+        }
+
+        if (songs[currentIndex] === song) {
+          setAnalysis(song);
+        }
+      });
+    }
+
+    const gameState = {
+      gomoku: { size: 15, board: [], current: 1, winner: 0 },
+      snake: { size: 16, snake: [], food: null, direction: "right", nextDirection: "right", timer: null, score: 0, alive: true },
+      twenty48: { board: [], score: 0 }
+    };
+
+    function openGameDrawer() {
+      gameDrawer.classList.add("show");
+      drawerMask.classList.add("show");
+      drawSnake();
+      render2048();
+    }
+
+    function closeGameDrawer() {
+      gameDrawer.classList.remove("show");
+      drawerMask.classList.remove("show");
+    }
+
+    function switchGame(gameName) {
+      gameTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.game === gameName));
+      gamePanels.forEach((panel) => panel.classList.toggle("active", panel.id === `${gameName}Game`));
+    }
+
+    function resetGomoku() {
+      gameState.gomoku.board = Array.from({ length: gameState.gomoku.size }, () => Array(gameState.gomoku.size).fill(0));
+      gameState.gomoku.current = 1;
+      gameState.gomoku.winner = 0;
+      gomokuStatus.textContent = "黑棋先手";
+      renderGomoku();
+    }
+
+    function checkGomokuWin(row, col, player) {
+      const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+
+      return directions.some(([dx, dy]) => {
+        let count = 1;
+
+        for (const sign of [-1, 1]) {
+          let x = row + dx * sign;
+          let y = col + dy * sign;
+
+          while (
+            x >= 0 &&
+            x < gameState.gomoku.size &&
+            y >= 0 &&
+            y < gameState.gomoku.size &&
+            gameState.gomoku.board[x][y] === player
+          ) {
+            count += 1;
+            x += dx * sign;
+            y += dy * sign;
+          }
+        }
+
+        return count >= 5;
+      });
+    }
+
+    function playGomoku(row, col) {
+      const state = gameState.gomoku;
+
+      if (state.winner || state.board[row][col]) {
+        return;
+      }
+
+      state.board[row][col] = state.current;
+
+      if (checkGomokuWin(row, col, state.current)) {
+        state.winner = state.current;
+        gomokuStatus.textContent = `${state.current === 1 ? "黑棋" : "白棋"}获胜`;
+      } else {
+        state.current = state.current === 1 ? 2 : 1;
+        gomokuStatus.textContent = `${state.current === 1 ? "黑棋" : "白棋"}落子`;
+      }
+
+      renderGomoku();
+    }
+
+    function renderGomoku() {
+      gomokuBoard.innerHTML = "";
+
+      gameState.gomoku.board.forEach((row, rowIndex) => {
+        row.forEach((cell, colIndex) => {
+          const button = document.createElement("button");
+          button.className = "gomoku-cell";
+          button.type = "button";
+          button.addEventListener("click", () => playGomoku(rowIndex, colIndex));
+
+          if (cell) {
+            const piece = document.createElement("span");
+            piece.className = `gomoku-piece ${cell === 1 ? "black" : "white"}`;
+            button.appendChild(piece);
+          }
+
+          gomokuBoard.appendChild(button);
+        });
+      });
+    }
+
+    function placeSnakeFood() {
+      const state = gameState.snake;
+
+      do {
+        state.food = {
+          x: Math.floor(Math.random() * state.size),
+          y: Math.floor(Math.random() * state.size)
+        };
+      } while (state.snake.some((part) => part.x === state.food.x && part.y === state.food.y));
+    }
+
+    function resetSnake() {
+      clearInterval(gameState.snake.timer);
+      gameState.snake.snake = [{ x: 5, y: 8 }, { x: 4, y: 8 }, { x: 3, y: 8 }];
+      gameState.snake.direction = "right";
+      gameState.snake.nextDirection = "right";
+      gameState.snake.score = 0;
+      gameState.snake.alive = true;
+      placeSnakeFood();
+      snakeStatus.textContent = "分数 0";
+      drawSnake();
+      gameState.snake.timer = setInterval(moveSnake, 140);
+    }
+
+    function moveSnake() {
+      const state = gameState.snake;
+
+      if (!state.alive) {
+        return;
+      }
+
+      state.direction = state.nextDirection;
+
+      const head = { ...state.snake[0] };
+      const moves = {
+        up: [0, -1],
+        down: [0, 1],
+        left: [-1, 0],
+        right: [1, 0]
+      };
+      const [dx, dy] = moves[state.direction];
+      head.x += dx;
+      head.y += dy;
+
+      const hitWall = head.x < 0 || head.x >= state.size || head.y < 0 || head.y >= state.size;
+      const hitSelf = state.snake.some((part) => part.x === head.x && part.y === head.y);
+
+      if (hitWall || hitSelf) {
+        state.alive = false;
+        snakeStatus.textContent = `结束 分数 ${state.score}`;
+        clearInterval(state.timer);
+        return;
+      }
+
+      state.snake.unshift(head);
+
+      if (head.x === state.food.x && head.y === state.food.y) {
+        state.score += 1;
+        snakeStatus.textContent = `分数 ${state.score}`;
+        placeSnakeFood();
+      } else {
+        state.snake.pop();
+      }
+
+      drawSnake();
+    }
+
+    function drawSnake() {
+      snakeBoard.innerHTML = "";
+
+      for (let y = 0; y < gameState.snake.size; y += 1) {
+        for (let x = 0; x < gameState.snake.size; x += 1) {
+          const cell = document.createElement("span");
+          cell.className = "snake-cell";
+
+          if (gameState.snake.snake.some((part) => part.x === x && part.y === y)) {
+            cell.classList.add("snake");
+          }
+
+          if (gameState.snake.food && gameState.snake.food.x === x && gameState.snake.food.y === y) {
+            cell.classList.add("food");
+          }
+
+          snakeBoard.appendChild(cell);
+        }
+      }
+    }
+
+    function reset2048() {
+      gameState.twenty48.board = Array.from({ length: 4 }, () => Array(4).fill(0));
+      gameState.twenty48.score = 0;
+      add2048Tile();
+      add2048Tile();
+      render2048();
+    }
+
+    function add2048Tile() {
+      const emptyCells = [];
+
+      gameState.twenty48.board.forEach((row, rowIndex) => {
+        row.forEach((value, colIndex) => {
+          if (!value) {
+            emptyCells.push([rowIndex, colIndex]);
+          }
+        });
+      });
+
+      if (emptyCells.length === 0) {
+        return;
+      }
+
+      const [row, col] = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      gameState.twenty48.board[row][col] = Math.random() > 0.85 ? 4 : 2;
+    }
+
+    function slide2048Line(line) {
+      const compact = line.filter(Boolean);
+      const merged = [];
+      let changed = compact.length !== line.length;
+
+      for (let i = 0; i < compact.length; i += 1) {
+        if (compact[i] === compact[i + 1]) {
+          const value = compact[i] * 2;
+          merged.push(value);
+          gameState.twenty48.score += value;
+          i += 1;
+          changed = true;
+        } else {
+          merged.push(compact[i]);
+        }
+      }
+
+      while (merged.length < 4) {
+        merged.push(0);
+      }
+
+      if (!changed) {
+        changed = merged.some((value, index) => value !== line[index]);
+      }
+
+      return { line: merged, changed };
+    }
+
+    function move2048(direction) {
+      let moved = false;
+      const board = gameState.twenty48.board;
+
+      for (let i = 0; i < 4; i += 1) {
+        const line = [];
+
+        for (let j = 0; j < 4; j += 1) {
+          if (direction === "left") line.push(board[i][j]);
+          if (direction === "right") line.push(board[i][3 - j]);
+          if (direction === "up") line.push(board[j][i]);
+          if (direction === "down") line.push(board[3 - j][i]);
+        }
+
+        const result = slide2048Line(line);
+        moved = moved || result.changed;
+
+        for (let j = 0; j < 4; j += 1) {
+          if (direction === "left") board[i][j] = result.line[j];
+          if (direction === "right") board[i][3 - j] = result.line[j];
+          if (direction === "up") board[j][i] = result.line[j];
+          if (direction === "down") board[3 - j][i] = result.line[j];
+        }
+      }
+
+      if (moved) {
+        add2048Tile();
+        render2048();
+      }
+    }
+
+    function render2048() {
+      board2048.innerHTML = "";
+      score2048.textContent = `分数 ${gameState.twenty48.score}`;
+
+      gameState.twenty48.board.flat().forEach((value) => {
+        const tile = document.createElement("span");
+        tile.className = "tile-2048";
+        tile.textContent = value || "";
+        tile.dataset.value = value;
+        board2048.appendChild(tile);
+      });
+    }
+
+    resetGomoku();
+    resetSnake();
+    reset2048();
+
+    menuBtn.addEventListener("click", openGameDrawer);
+    closeDrawerBtn.addEventListener("click", closeGameDrawer);
+    drawerMask.addEventListener("click", closeGameDrawer);
+    resetGomokuBtn.addEventListener("click", resetGomoku);
+    resetSnakeBtn.addEventListener("click", resetSnake);
+    reset2048Btn.addEventListener("click", reset2048);
+
+    gameTabs.forEach((tab) => {
+      tab.addEventListener("click", () => switchGame(tab.dataset.game));
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (!gameDrawer.classList.contains("show")) {
+        return;
+      }
+
+      const activeGame = document.querySelector(".game-tab.active").dataset.game;
+      const keyMap = {
+        ArrowUp: "up",
+        KeyW: "up",
+        ArrowDown: "down",
+        KeyS: "down",
+        ArrowLeft: "left",
+        KeyA: "left",
+        ArrowRight: "right",
+        KeyD: "right"
+      };
+      const direction = keyMap[event.code];
+
+      if (!direction) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (activeGame === "snake") {
+        const opposite = {
+          up: "down",
+          down: "up",
+          left: "right",
+          right: "left"
+        };
+
+        if (opposite[direction] !== gameState.snake.direction) {
+          gameState.snake.nextDirection = direction;
+        }
+      }
+
+      if (activeGame === "twenty48") {
+        move2048(direction);
+      }
+    });
+
+    musicInput.addEventListener("change", () => {
+      loadMusicFiles(musicInput.files);
+      musicInput.value = "";
+    });
+
+    document.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      document.body.classList.add("drag-over");
+    });
+
+    document.addEventListener("dragleave", (event) => {
+      if (event.clientX === 0 && event.clientY === 0) {
+        document.body.classList.remove("drag-over");
+      }
+    });
+
+    document.addEventListener("drop", (event) => {
+      event.preventDefault();
+      document.body.classList.remove("drag-over");
+      loadMusicFiles(event.dataTransfer.files);
+    });
+
+    favoriteBtn.addEventListener("click", () => {
+      const currentSong = songs[currentIndex];
+
+      if (!currentSong) {
+        songHint.textContent = "请先上传一首音乐再收藏";
+        return;
+      }
+
+      const songKey = getSongKey(currentSong);
+
+      if (favorites.has(songKey)) {
+        favorites.delete(songKey);
+      } else {
+        favorites.add(songKey);
+      }
+
+      saveFavorites();
+      updateFavoriteButton();
+      renderPlaylist();
+    });
+
+    modeBtn.addEventListener("click", () => {
+      if (playMode === "order") {
+        playMode = "random";
+      } else if (playMode === "random") {
+        playMode = "single";
+      } else {
+        playMode = "order";
+      }
+
+      updateModeButton();
+    });
+
+    analysisBtn.addEventListener("click", () => {
+      analysisCard.classList.toggle("show");
+      analysisBtn.classList.toggle("active", analysisCard.classList.contains("show"));
+      setAnalysis(songs[currentIndex]);
+    });
+
+    themeBtn.addEventListener("click", () => {
+      themeMode = themeMode === "light" ? "dark" : "light";
+      updateThemeMode();
+    });
+
+    playBtn.addEventListener("click", () => {
+      if (audio.paused) {
+        playSong();
+      } else {
+        pauseSong();
+      }
+    });
+
+    prevBtn.addEventListener("click", playPreviousSong);
+    nextBtn.addEventListener("click", playNextSong);
+    qualitySelect.addEventListener("change", applyQualityEffect);
+
+    audio.addEventListener("loadedmetadata", () => {
+      durationText.textContent = formatTime(audio.duration);
+    });
+
+    audio.addEventListener("play", () => {
+      setPlayingState(true);
+    });
+
+    audio.addEventListener("pause", () => {
+      setPlayingState(false);
+    });
+
+    audio.addEventListener("timeupdate", () => {
+      if (audio.duration) {
+        const progress = (audio.currentTime / audio.duration) * 100;
+        progressBar.value = progress;
+        currentTimeText.textContent = formatTime(audio.currentTime);
+      }
+    });
+
+    progressBar.addEventListener("input", () => {
+      if (audio.duration) {
+        audio.currentTime = (progressBar.value / 100) * audio.duration;
+      }
+    });
+
+    volumeBar.addEventListener("input", () => {
+      audio.volume = volumeBar.value;
+      volumeText.textContent = `${Math.round(volumeBar.value * 100)}%`;
+    });
+
+    audio.addEventListener("ended", playNextSong);
+
+    audio.addEventListener("error", () => {
+      songHint.textContent = "这首歌曲暂时无法播放，请尝试其他音频文件";
+      setPlayingState(false);
+    });
+
+    window.addEventListener("resize", syncCanvasSize);
+    updateModeButton();
+    updateThemeMode();
+    updateFavoriteButton();
+    drawWave();
+  </script>
+</body>
+</html>
